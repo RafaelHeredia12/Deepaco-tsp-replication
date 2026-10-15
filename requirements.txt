@@ -1,0 +1,7 @@
+torch>=2.0
+torch_geometric>=2.3
+numpy
+pandas
+scipy
+matplotlib
+numba  # solo para deepaco/tsp_nls (búsqueda local 2-opt)
