@@ -79,4 +79,28 @@ Son los únicos valores numéricos que los autores publican para la Fig. 2; los 
 5. **Validación de probabilidades.** A partir de PyTorch 1.8, `torch.distributions.Categorical` valida que las probabilidades formen un simplex. En TSP500 la heurística aprendida produce valores muy pequeños (~10⁻¹²) y la validación aborta la ejecución. Se agregó `validate_args=False` en `deepaco/tsp/aco.py`, lo que reproduce el comportamiento de PyTorch 1.7. Los propios autores ya usan ese argumento en `tsp_nls/aco.py`, pero no en `tsp/aco.py`.
 6. **Costo computacional.** Los autores usan una GPU RTX 3090 y reportan 3 corridas; la actividad pide 30. En CPU, TSP500 con 100 instancias y T = 100 tarda ~1.5 h por método y semilla, por lo que requiere GPU o menos instancias.
 
+7. **Protocolo reducido en TSP500.** Por costo computacional, TSP500 se corrió solo con Ant System, 20 instancias (en vez de 100) y hasta T = 50, manteniendo las 30 semillas.
+8. **GPU no siempre es más rápida.** En TSP100, el código de los autores corre unas 3.5 veces más lento en una RTX 3070 que en CPU: cada paso de construcción de las hormigas es una operación muy pequeña y domina el costo de enviarla a la GPU. La GPU solo conviene en TSP500.
+
 Código de los autores usado: commit `9a756a3` (29 de septiembre de 2024).
+
+## 7. Mejora propuesta: hibridación con 2-opt
+
+**Idea.** Cada ruta construida por una hormiga se refina con búsqueda local 2-opt antes de evaluarla y depositar feromona (esquema clásico ACO + búsqueda local; Dorigo & Stützle). 2-opt elimina cruces: si los arcos (a, b) y (c, d) se cruzan, se reemplazan por (a, c) y (b, d) invirtiendo el tramo intermedio, lo que en el plano euclidiano siempre acorta la ruta.
+
+**Por qué esta mejora.** En un piloto (TSP100, 10 instancias, 2 semillas) se compararon tres candidatas frente a la réplica de DeepACO (AS):
+
+| Configuración | Longitud media | vs. réplica |
+|---|---|---|
+| DeepACO + AS (réplica) | 8.130 | — |
+| DeepACO + Ant Colony System | 8.097 | −0.4 % |
+| DeepACO con heurística η<sub>θ</sub>·(1/d) | 8.115 | −0.2 % |
+| DeepACO + AS + 2-opt | 7.759 | −4.6 % |
+| DeepACO + ACS + 2-opt | 7.739 | −4.8 % |
+| ACO clásico + 2-opt (control) | 7.727 | −5.0 % |
+
+Solo la hibridación con 2-opt dio una mejora importante, sin aumentar de forma notable el tiempo. El piloto también sugiere que, con 2-opt, el ACO clásico alcanza a DeepACO. Esto es coherente con la limitación que señalan los autores: la heurística aprendida sin búsqueda local es muy "agresiva" (Apéndice C.6) y reduce la exploración, por lo que para usar búsqueda local entrenan un modelo distinto (W = 9 en la Ec. 4). El experimento completo (30 semillas, 100 instancias) confirmará o descartará este resultado.
+
+**Relación con el artículo.** Los autores proponen NLS, una búsqueda local que alterna 2-opt con perturbaciones guiadas por la red, con un modelo reentrenado para ese fin. La mejora aquí es más simple: un 2-opt estándar sobre el modelo básico, sin reentrenar.
+
+**Parámetros de ACS.** q<sub>0</sub> = 0.9, ρ = 0.1, ξ = 0.1, τ<sub>0</sub> = 1/(n·L̄) con L̄ la longitud media de la primera iteración (valores estándar de Dorigo & Gambardella, 1997).
