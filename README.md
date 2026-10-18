@@ -12,14 +12,44 @@ Código original de los autores: https://github.com/henry-yeh/DeepACO (licencia 
 
 Replicamos la evaluación del artículo en TSP:
 
-| Experimento del artículo | Qué compara | Estado |
-|---|---|---|
-| Fig. 2 (panel TSP) | ACO vs DeepACO con Ant System, Elitist AS y MAX-MIN AS | En curso: TSP100 (3 variantes), TSP500 (AS, protocolo reducido), TSP20 |
-| Fig. 4 | Sensibilidad a α y a la evaporación (TSP100) | Pendiente |
-| Fig. 5 | Generalización a instancias reales de TSPLIB | Pendiente |
-| Tabla 1 (filas ACO y DeepACO) | TSP500 y TSP1000 con búsqueda local guiada (NLS) | Pendiente |
+Se replicó completo el **panel TSP de la Fig. 2** (ACO vs DeepACO con Ant System, Elitist AS y MAX-MIN AS):
 
-Protocolo: **30 corridas independientes** (semillas 0–29) por configuración; se reportan media, mediana y desviación estándar, y se compara con la prueba de Wilcoxon. El análisis completo del artículo está en [`docs/analisis_articulo.md`](docs/analisis_articulo.md).
+| Tamaño | Variantes | Instancias | Iteraciones T | Corridas |
+|---|---|---|---|---|
+| TSP20 | AS, Elitist, MMAS | 100 | 100 | 30 |
+| TSP100 | AS, Elitist, MMAS | 100 | 100 | 30 |
+| TSP500 | AS | 20 (protocolo reducido por costo) | 50 | 30 |
+
+Protocolo: **30 corridas independientes** (semillas 0–29) por configuración, frente a 3 en el artículo; se reportan media, mediana y desviación estándar, y se compara con la prueba de Wilcoxon de rangos con signo. El análisis completo está en [`docs/analisis_articulo.md`](docs/analisis_articulo.md).
+
+**Fuera de alcance:** la Fig. 4 (sensibilidad a hiperparámetros), la Fig. 5 (TSPLIB) y la Tabla 1 (comparación con otros métodos neuronales con búsqueda local NLS). Se priorizó replicar completa la Fig. 2 con 30 corridas por configuración.
+
+## Resultados
+
+Longitud media del tour al final de la búsqueda (30 corridas; ± desviación estándar):
+
+| | ACO clásico | DeepACO | DeepACO mejor por |
+|---|---|---|---|
+| TSP20 · AS | 3.829 ± 0.002 | 3.811 ± 0.001 | 0.5 % |
+| TSP20 · Elitist | 3.817 ± 0.002 | 3.808 ± 0.001 | 0.2 % |
+| TSP20 · MMAS | 4.281 ± 0.013 | 3.811 ± 0.001 | 11.0 % |
+| TSP100 · AS | 9.664 ± 0.023 | 8.234 ± 0.007 | 14.8 % |
+| TSP100 · Elitist | 9.439 ± 0.028 | 8.129 ± 0.007 | 13.9 % |
+| TSP100 · MMAS | 9.979 ± 0.016 | 8.276 ± 0.006 | 17.1 % |
+| TSP500 · AS | 26.531 ± 0.066 | 18.889 ± 0.023 | 28.8 % |
+
+DeepACO supera a ACO en las 30 corridas de todas las configuraciones (Wilcoxon pareado, p < 10⁻⁸). En TSP20, los únicos valores numéricos que publican los autores (ACO 3.835, DeepACO 3.809 en T = 100) quedan a menos de 0.2 % de la réplica (3.829 y 3.811).
+
+**Mejora (TSP100, Ant System):**
+
+| Método | Longitud media | vs. réplica de DeepACO |
+|---|---|---|
+| DeepACO (réplica) | 8.234 ± 0.007 | — |
+| **DeepACO + 2-opt** | **7.817 ± 0.002** | **5.1 % mejor** |
+| DeepACO + ACS + 2-opt | 7.791 ± 0.002 | 5.4 % mejor |
+| ACO clásico + 2-opt (control) | 7.785 ± 0.001 | 5.5 % mejor |
+
+Con 2-opt, DeepACO arranca mejor pero el ACO clásico lo alcanza hacia la iteración 10 y termina ligeramente por delante (30 de 30 corridas). Las figuras están en `results/figuras/` y se regeneran con `python analysis/figuras_poster.py`.
 
 ## Mejora propuesta: hibridación con búsqueda local 2-opt
 
@@ -49,8 +79,10 @@ experiments/run_tsp.py   Réplica: ACO vs DeepACO con 30 semillas
 experiments/run_mejora.py Mejora: hibridación con 2-opt (mismo protocolo)
 experiments/variants.py  Ant Colony System e hibridación con 2-opt
 analysis/stats.py        Media, mediana, d.e., Wilcoxon y curvas de evolución
-docs/                    Análisis del artículo y hallazgos de replicabilidad
-results/                 Salidas de los experimentos (CSV y gráficas)
+analysis/figuras_poster.py Figuras y tabla resumen para el póster
+docs/                    Análisis del artículo, hallazgos de replicabilidad y conclusiones
+results/                 CSV de todas las corridas (réplica y mejora)
+results/figuras/         Figuras del póster y tabla_resumen.csv
 ```
 
 Modificaciones al código original: una sola línea en `deepaco/tsp/aco.py` (`Categorical(..., validate_args=False)`) para que corra con PyTorch moderno. Está explicada en `docs/analisis_articulo.md`.
@@ -105,6 +137,14 @@ python analysis/stats.py "results/tsp100_as_*.csv" "results/mejora_tsp100*.csv" 
 ```
 
 Imprime la tabla de media, mediana y desviación estándar, la prueba de Wilcoxon pareada (ACO vs DeepACO y cada método contra la réplica de DeepACO), la comparación contra los valores reportados, y guarda `*_resumen.csv` y `*_curva.png`.
+
+**4. Figuras del póster:**
+
+```bash
+python analysis/figuras_poster.py
+```
+
+Lee todos los CSV de `results/` y genera en `results/figuras/` la réplica contra el artículo (TSP20), la ventaja de DeepACO por variante y tamaño, el efecto del 2-opt y su evolución, además de `tabla_resumen.csv`.
 
 ### Tiempos medidos
 
